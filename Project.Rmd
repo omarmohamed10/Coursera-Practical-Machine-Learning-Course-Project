@@ -1,0 +1,148 @@
+---
+title: "Coursera Practical Machine Learning Project"
+author: "Omar Mohamed"
+date: "2019 M09 4"
+output: html_document
+---
+
+
+
+#### **Download Traning Dataset and Testing Dataset**
+
+```{r}
+Training.Url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+Testing.Url <-  "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+  
+if(!file.exists("Data")){
+  dir.create("Data")
+  download.file(Training.Url , destfile = "./Data/pml_training.csv")
+  download.file(Testing.Url , destfile = "./Data/pml_testing.csv")
+}
+
+list.files("./Data")
+```
+
+#### **Data Exploration**
+```{r}
+
+training.data <- read.csv("./Data/pml_training.csv")
+testing.data <- read.csv("./Data/pml_testing.csv")
+
+```
+look at the dimensions of two dataset
+```{r}
+sprintf("training data has %i rows and %i columns",dim(training.data)[1],dim(training.data)[2])
+sprintf("testing data has %i rows and %i columns",dim(testing.data)[1],dim(testing.data)[2])
+```
+
+checking missing values and remove them
+```{r}
+any(is.na(training.data))
+```
+
+removing columns which has more than 10000 NA values
+```{r}
+remove.cols <- which(colSums(is.na(training.data))>10000)
+training.data <- training.data[,-remove.cols]
+```
+
+removing columns which has more than 10000 empty values
+```{r}
+training.data <- training.data[,-c(which(colSums(training.data=="")>10000))]
+```
+
+Also remove all time related data, and ignore username and windows columns since we won't use those 
+```{r}
+removeColumns <- grep("timestamp", names(training.data))
+training.data <- training.data[,-c(1, removeColumns )]
+training.data <- training.data[,-c(1:3)]
+```
+
+#### **Build Model**
+
+We already read a testing dataset so, we considered it as a validation dataset , Now split the training data into training set and testing set
+```{r}
+
+set.seed(1234)
+library("caret")
+inTrain <- createDataPartition(y = training.data$classe , p = 0.7 , list = FALSE)
+train.subset <- training.data[inTrain,]
+test.subset <- training.data[-inTrain,]
+
+```
+
+#### **Model Training**
+first parallel processing in **caret** can be accomplished with **doParallel** package but before load it you must load **foreach** and **iterators** packages
+then train the model with **random forest**
+
+we save model in rds file so, when can read the model
+
+i comment the line of train fn because it take too much time
+```{r}
+
+library("doParallel")
+cluster <- makeCluster(detectCores() -1)
+registerDoParallel(cluster)
+
+#set.seed(110054)
+#model <- train(classe~. , data = train.subset , method="rf" , preProcess = c('center', 'scale'))
+#save.model <- saveRDS(model , file = 'RF.rds')
+model <- readRDS("RF.rds")
+
+```
+
+#### **Prediction on Train data**
+
+```{r}
+
+pred<- predict(model , test.subset)
+confusionMatrix(pred , test.subset$classe)$overall[1]
+```
+
+print results
+```{r}
+table(pred)
+```
+
+#### **Variable Importance**
+
+```{r}
+
+plot(model$finalModel)
+```
+
+```{r}
+
+plot(varImp(model) , maint = "Random Forest")
+```
+
+#### **Using the test data**
+
+check for NA values
+```{r}
+any(is.na(testing.data))
+```
+
+remove columns which has more than 15 NA values
+```{r}
+testing.data <- testing.data[,-c(which(colSums(is.na(testing.data))>15))]
+```
+
+Also remove all time related data, and ignore username and windows columns since we won't use those 
+```{r}
+removeColumns <- grep("timestamp", names(testing.data))
+testing.data <- testing.data[,-c(1, removeColumns )]
+testing.data <- testing.data[,-c(1:3)]
+```
+
+#### **Prediction on Testing data**
+```{r}
+
+pred2 <- predict(model , testing.data)
+table(pred2)
+```
+
+
+
+
+
